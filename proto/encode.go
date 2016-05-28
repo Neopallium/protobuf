@@ -245,6 +245,41 @@ func Marshal(pb Message) ([]byte, error) {
 	return p.buf, err
 }
 
+// MarshalDelimited takes the protocol buffer
+// and encodes it into the wire format, returning the data.
+func MarshalDelimited(pb Message) ([]byte, error) {
+	// Can the object marshal itself?
+	if m, ok := pb.(Marshaler); ok {
+		data, err := m.Marshal()
+		if err != nil {
+			return nil, err
+		}
+		// Encode message size.
+		s := EncodeVarint(uint64(len(data)))
+		// pre-append message size to message.
+		return append(s, data...), nil
+	}
+
+	// calculate size of message
+	msgSize := Size(pb)
+	// calculate buffer space needed.
+	bufSize := sizeVarint(uint64(msgSize)) + msgSize
+
+	p := NewBuffer(make([]byte, 0, bufSize))
+	// encode message size as a varint
+	p.EncodeVarint(uint64(msgSize))
+	err := p.Marshal(pb)
+	var state errorState
+	if err != nil && !state.shouldContinue(err, nil) {
+		return nil, err
+	}
+	if p.buf == nil && err == nil {
+		// Return a non-nil slice on success.
+		return []byte{}, nil
+	}
+	return p.buf, err
+}
+
 // EncodeMessage writes the protocol buffer to the Buffer,
 // prefixed by a varint-encoded length.
 func (p *Buffer) EncodeMessage(pb Message) error {

@@ -318,6 +318,36 @@ func UnmarshalMerge(buf []byte, pb Message) error {
 	return NewBuffer(buf).Unmarshal(pb)
 }
 
+// UnmarshalDelimited parses the protocol buffer representation in buf and places the
+// decoded result in pb.  If the struct underlying pb does not match
+// the data in buf, the results can be unpredictable.
+//
+// UnmarshalDelimited resets pb before starting to unmarshal, so any
+// existing data in pb is always removed. Use UnmarshalDelimitedMerge
+// to preserve and append to existing data.
+func UnmarshalDelimited(buf []byte, pb Message) error {
+	pb.Reset()
+	return UnmarshalDelimitedMerge(buf, pb)
+}
+
+// UnmarshalDelimitedMerge parses the protocol buffer representation in buf and
+// writes the decoded result to pb.  If the struct underlying pb does not match
+// the data in buf, the results can be unpredictable.
+//
+// UnmarshalDelimitedMerge merges into existing data in pb.
+// Most code should use UnmarshalDelimited instead.
+func UnmarshalDelimitedMerge(buf []byte, pb Message) error {
+	enc, err := NewBuffer(buf).DecodeRawBytes(false)
+	if err != nil {
+		return err
+	}
+	// If the object can unmarshal itself, let it.
+	if u, ok := pb.(Unmarshaler); ok {
+		return u.Unmarshal(enc)
+	}
+	return NewBuffer(enc).Unmarshal(pb)
+}
+
 // DecodeMessage reads a count-delimited message from the Buffer.
 func (p *Buffer) DecodeMessage(pb Message) error {
 	enc, err := p.DecodeRawBytes(false)
